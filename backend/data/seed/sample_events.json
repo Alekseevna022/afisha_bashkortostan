@@ -1,0 +1,51 @@
+[
+  {
+    "title": "Концерт Башкирской филармонии",
+    "normalized_title": "концерт башкирской филармонии",
+    "category": "concert",
+    "date_start": "2026-11-15T19:00:00",
+    "city": "Уфа",
+    "venue": "Башкирская государственная филармония",
+    "address": "ул. Ленина, 62",
+    "description": "Вечер классической музыки",
+    "price_min": 500,
+    "price_max": 1500,
+    "is_free": false,
+    "age_limit": 6,
+    "status": "published",
+    "source_type": "manual"
+  },
+  {
+    "title": "Выставка «Сокровища Башкирии»",
+    "normalized_title": "выставка сокровища башкирии",
+    "category": "exhibition",
+    "date_start": "2026-11-14T10:00:00",
+    "date_end": "2026-12-30T18:00:00",
+    "city": "Уфа",
+    "venue": "Национальный музей РБ",
+    "address": "ул. Советская, 14",
+    "description": "Экспозиция археологических находок",
+    "price_min": 0,
+    "price_max": 0,
+    "is_free": true,
+    "age_limit": 0,
+    "status": "published",
+    "source_type": "manual"
+  },
+  {
+    "title": "Спектакль «Урал батыр»",
+    "normalized_title": "спектакль урал батыр",
+    "category": "play",
+    "date_start": "2026-11-16T18:00:00",
+    "city": "Стерлитамак",
+    "venue": "Русский драматический театр",
+    "address": "пр. Октября, 28",
+    "description": "Эпос в современной постановке",
+    "price_min": 300,
+    "price_max": 800,
+    "is_free": false,
+    "age_limit": 12,
+    "status": "published",
+    "source_type": "manual"
+  }
+]

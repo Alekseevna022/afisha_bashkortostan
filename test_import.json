@@ -1,0 +1,24 @@
+[
+  {
+    "title": "Тестовый джазовый вечер",
+    "normalized_title": "тестовый джазовый вечер",
+    "category": "concert",
+    "date_start": "2026-11-20T19:00:00",
+    "city": "Уфа",
+    "venue": "Клуб Тон",
+    "price_min": 500,
+    "is_free": false,
+    "age_limit": 18
+  },
+  {
+    "title": "Тестовый джазовый вечер",
+    "normalized_title": "тестовый джазовый вечер",
+    "category": "concert",
+    "date_start": "2026-11-20T19:00:00",
+    "city": "Уфа",
+    "venue": "Клуб Тон",
+    "price_min": 600,
+    "is_free": false,
+    "age_limit": 18
+  }
+]
