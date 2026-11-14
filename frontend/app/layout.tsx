@@ -21,14 +21,21 @@ export default function RootLayout({
     <html lang="ru">
       <body className="min-h-screen">
         <header className="border-b border-stone-200 bg-surface shadow-sm">
-          <div className="mx-auto max-w-7xl px-4 py-4">
-            <Link
-              href="/"
-              className="font-serif text-2xl font-bold text-primary transition-colors hover:text-accent"
-            >
-              🎭 Афиша Башкортостана
-            </Link>
-          </div>
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4">
+          <Link
+            href="/"
+            className="font-serif text-2xl font-bold text-primary transition-colors hover:text-accent"
+          >
+            🎭 Афиша Башкортостана
+          </Link>
+
+          <Link
+            href="/account"
+            className="rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Личный кабинет
+          </Link>
+        </div>
         </header>
         <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
         <footer className="mt-12 border-t border-stone-200 bg-surface py-6 text-center text-sm text-muted">

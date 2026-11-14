@@ -5,6 +5,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     database_url: str
     telegram_bot_token: str = ""
+    auth_secret: str = ""
 
     # Адрес сайта
     site_url: str = "http://localhost:3000"
