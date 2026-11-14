@@ -65,23 +65,104 @@ def call_model(state: AgentState) -> dict:
     return {"messages": [response]}
 
 
+def _extract_hard_filters(user_text: str) -> dict:
+    """
+    Извлекает обязательные фильтры непосредственно
+    из запроса пользователя.
+    """
+    text = user_text.lower().replace("ё", "е")
+    filters = {}
+
+    # Цена
+    if re.search(
+        r"\b(бесплатно|бесплатные|бесплатный|бесплатная|без оплаты)\b",
+        text
+    ):
+        filters["is_free"] = True
+
+    elif re.search(
+        r"\b(платно|платные|платный|платная|за деньги)\b",
+        text
+    ):
+        filters["is_free"] = False
+
+    # Возраст 12+, 16+, 18+
+    age_plus = re.search(r"\b(\d{1,2})\s*\+", text)
+
+    if age_plus:
+        filters["age_min"] = int(age_plus.group(1))
+
+    # Возраст до определённого значения
+    age_max = re.search(
+        r"\bдо\s*(\d{1,2})\s*(?:лет|года|год)?\b",
+        text
+    )
+
+    child_age = re.search(
+        r"(?:ребенку|ребёнку|ребенка|ребёнка|детям)\s*(\d{1,2})\s*(?:лет|года|год)",
+        text
+    )
+
+    if age_max:
+        filters["age_max"] = int(age_max.group(1))
+
+    elif child_age:
+        filters["age_max"] = int(child_age.group(1))
+
+    elif not age_plus and re.search(
+        r"\b(для детей|детям|детский|детская)\b",
+        text
+    ):
+        filters["age_max"] = 12
+
+    elif not age_plus and re.search(
+        r"\b(для взрослых|взрослым|взрослые)\b",
+        text
+    ):
+        filters["age_min"] = 18
+
+    return filters
+
+
 def tool_executor(state: AgentState) -> dict:
-    """Выполнение инструментов."""
+    """Выполнение инструментов с принудительной фильтрацией."""
+
+    last_user_message = ""
+
+    for message in reversed(state["messages"]):
+        if isinstance(message, HumanMessage):
+            last_user_message = str(message.content)
+            break
+
+    hard_filters = _extract_hard_filters(last_user_message)
+
+    # Принудительно добавляем фильтры в вызов поиска
+    last_message = state["messages"][-1]
+
+    if hasattr(last_message, "tool_calls"):
+        for tool_call in last_message.tool_calls:
+            if tool_call["name"] == "search_events":
+                tool_call["args"].update(hard_filters)
+
     tool_node = ToolNode(ALL_TOOLS)
     result = tool_node.invoke(state)
-    
-    # Записываем вызовы в трассировку
-    last_message = state["messages"][-1]
+
+    # Записываем вызовы инструментов
     if hasattr(last_message, "tool_calls"):
         for i, tc in enumerate(last_message.tool_calls):
-            tool_result = result["messages"][i] if i < len(result["messages"]) else None
+            tool_result = (
+                result["messages"][i]
+                if i < len(result["messages"])
+                else None
+            )
+
             state["trace"].add_tool_call(
                 tool_name=tc["name"],
                 args=tc["args"],
                 result=tool_result.content if tool_result else "",
-                duration_ms=0,  # Можно добавить замер времени
+                duration_ms=0,
             )
-    
+
     return {"messages": result["messages"]}
 
 

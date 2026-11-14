@@ -37,5 +37,24 @@ services:
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
+  bot:
+    build: ./backend
+    command: python -m app.bot.bot
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://afisha:1221@db:5432/afisha
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - YANDEXGPT_API_KEY=${YANDEXGPT_API_KEY}
+      - YANDEXGPT_FOLDER_ID=${YANDEXGPT_FOLDER_ID}
+      - YANDEXGPT_BASE_URL=${YANDEXGPT_BASE_URL}
+      - YANDEXGPT_MODEL=${YANDEXGPT_MODEL}
+      - SITE_URL=${SITE_URL:-http://localhost:3000}
+    depends_on:
+      - db
+      - api
+
 volumes:
   postgres_data:
