@@ -6,6 +6,9 @@ from sqlalchemy import select
 from app.models.events import Event, Source, AuditLog
 from app.services.normalize import generate_dedup_key, normalize_title
 
+def _parse_dt(value: str) -> datetime:
+    """ISO-строка -> naive datetime (колонки в БД без часового пояса)."""
+    return datetime.fromisoformat(value.replace('Z', '+00:00')).replace(tzinfo=None)
 
 async def import_events_from_json(
     db: AsyncSession, 
@@ -25,18 +28,18 @@ async def import_events_from_json(
     for idx, item in enumerate(raw_items):
         try:
             # 1. Нормализация и подготовка данных
-            title = item.get("title", "").strip()
+            title = (item.get("title") or "").strip()
             normalized_title = normalize_title(item.get("normalized_title") or title)
             date_start_str = item.get("date_start")
-            venue = item.get("venue", "").strip()
+            venue = (item.get("venue") or "").strip()
             
             if not title or not date_start_str:
                 report["errors"].append(f"Row {idx}: Missing title or date_start")
                 continue
 
             # Парсинг даты
-            date_start = datetime.fromisoformat(date_start_str.replace('Z', '+00:00'))
-            date_end = datetime.fromisoformat(item["date_end"].replace('Z', '+00:00')) if item.get("date_end") else None
+            date_start = _parse_dt(date_start_str)
+            date_end = _parse_dt(item["date_end"]) if item.get("date_end") else None
 
             # 2. Дедупликация
             dedup_key = generate_dedup_key(normalized_title, date_start_str, venue)
@@ -76,6 +79,10 @@ async def import_events_from_json(
                 existing_event.is_free = item.get("is_free", False)
                 existing_event.age_limit = item.get("age_limit", 0)
                 existing_event.source_url = source_url
+                existing_event.date_end = date_end
+                for field in ("org_link", "language", "tags", "duration_min"):
+                    if field in item:
+                        setattr(existing_event, field, item[field])
                 existing_event.updated_at = datetime.utcnow()
                 
                 source_record.event_id = existing_event.id
@@ -106,6 +113,10 @@ async def import_events_from_json(
                     price_max=item.get("price_max", 0),
                     is_free=item.get("is_free", False),
                     age_limit=item.get("age_limit", 0),
+                    org_link=item.get("org_link"),
+                    language=item.get("language"),
+                    tags=item.get("tags") or [],
+                    duration_min=item.get("duration_min"),
                     status="published",
                     source_type=source_type,
                     source_url=source_url,

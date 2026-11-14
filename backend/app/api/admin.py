@@ -3,10 +3,30 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.services.importer import import_events_from_json
+from app.services.events import create_event, DuplicateEventError
+from app.schemas.events import EventCreate, EventResponse
 from app.models.events import Event, AuditLog
 from sqlalchemy import select
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+@router.post("/events", response_model=EventResponse, status_code=201)
+async def create_event_manually(
+    payload: EventCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Ручное добавление одного мероприятия (форма на сайте)"""
+    try:
+        event = await create_event(db, payload)
+    except DuplicateEventError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Такое мероприятие уже есть: совпали название, дата начала и площадка",
+                "event_id": str(exc.event_id) if exc.event_id else None,
+            },
+        )
+    return EventResponse.model_validate(event)
 
 
 @router.post("/import/json")
@@ -15,7 +35,7 @@ async def import_json_events(
     db: AsyncSession = Depends(get_db)
 ):
     """Импорт событий из JSON файла с дедупликацией и отчётом"""
-    if not file.filename.endswith('.json'):
+    if not (file.filename or '').lower().endswith('.json'):
         raise HTTPException(status_code=400, detail="Только JSON файлы поддерживаются")
     
     content = await file.read()
