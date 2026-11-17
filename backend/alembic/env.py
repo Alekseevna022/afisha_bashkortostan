@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.database import Base
-from app.models import Event, AgentTrace, Source, AuditLog, User
+from app.models import Event, AgentTrace, Source, AuditLog, User, Favorite
 
 config = context.config
 if config.config_file_name is not None:

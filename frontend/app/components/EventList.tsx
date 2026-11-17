@@ -1,7 +1,9 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import EventCard from "@/app/components/EventCard";
+import { getToken, authFetch } from "@/app/lib/auth";
 import {
   API_URL,
   CATEGORY_FILTERS,
@@ -23,15 +25,19 @@ interface LoadResult {
   error: boolean;
 }
 
-const chipBase =
-  "shrink-0 rounded-button border px-4 py-1.5 font-sans text-sm transition-colors";
-const chipOff =
-  "border-stone-300 bg-surface text-primary hover:border-accent hover:text-accent";
-const chipOn = "border-accent bg-accent font-semibold text-white";
+/* Пункты бокового меню: как в личном кабинете.
+   На телефоне идут в строку с прокруткой, на md+ — столбиком. */
+const navBase =
+  "block shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-left text-sm transition-colors md:border-b-0 md:border-l-2";
+const navOn = "border-accent bg-white font-semibold text-primary";
+const navOff =
+  "border-transparent text-muted hover:border-stone-400 hover:text-primary";
+
+const groupLabel = "mb-2 text-xs tracking-widest text-muted";
 const fieldClass =
-  "rounded-lg border border-stone-300 bg-background px-4 py-2 font-sans text-sm transition-colors focus:border-accent focus:outline-none";
+  "w-full border border-stone-300 bg-white px-3 py-2 text-sm transition-colors focus:border-accent focus:outline-none";
 const actionButtonClass =
-  "mt-4 rounded-button border border-stone-300 bg-surface px-6 py-2 font-sans text-sm transition-colors hover:border-accent hover:text-accent disabled:opacity-50";
+  "mt-4 border border-stone-300 bg-white px-6 py-2.5 text-sm transition-colors hover:border-accent hover:text-accent disabled:opacity-50";
 
 export default function EventList() {
   const [city, setCity] = useState("");
@@ -43,10 +49,60 @@ export default function EventList() {
   const [retry, setRetry] = useState(0); // увеличиваем, чтобы повторить неудачный запрос
   const [result, setResult] = useState<LoadResult | null>(null);
 
+  // ID событий, добавленных пользователем в избранное
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+
   const requestKey = `${city}|${category}|${isFree}|${dateFilter}|${page}|${retry}`;
   const loading = result?.key !== requestKey;
   const customDate = CUSTOM_DATE_RE.test(dateFilter) ? dateFilter : "";
   const hasFilters = Boolean(city || category || isFree || dateFilter);
+
+  // Загружаем избранное авторизованного пользователя
+  useEffect(() => {
+    if (!getToken()) {
+      setFavoriteIds([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    authFetch("/api/v1/favorites/ids")
+      .then(async (res) => {
+        if (res.status === 401) {
+          setFavoriteIds([]);
+          return null;
+        }
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled || !data) return;
+
+        setFavoriteIds(data.items ?? []);
+      })
+      .catch((err) => {
+        console.error("Не удалось загрузить избранное:", err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Обновляем локальное состояние после изменения избранного в карточке
+  function handleFavoriteChange(eventId: string, value: boolean) {
+    setFavoriteIds((prev) => {
+      if (value) {
+        return prev.includes(eventId) ? prev : [...prev, eventId];
+      }
+
+      return prev.filter((id) => id !== eventId);
+    });
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -54,6 +110,7 @@ export default function EventList() {
       page: String(page),
       per_page: String(PER_PAGE),
     });
+
     if (city) params.set("city", city);
     if (category) params.set("category", category);
     if (isFree) params.set("is_free", "true");
@@ -107,25 +164,28 @@ export default function EventList() {
   }
 
   return (
-    <div>
-      {/* Фильтры */}
-      <div className="mb-8 space-y-4 rounded-card border border-stone-200 bg-surface p-5 shadow-sm sm:p-6">
+    <div className="grid gap-10 md:grid-cols-[220px_minmax(0,1fr)] lg:gap-12">
+      {/* ───────── Боковая панель с фильтрами ───────── */}
+      <aside className="space-y-7 md:sticky md:top-8 md:self-start">
         {/* Даты */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {DATE_PRESETS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              aria-pressed={dateFilter === p.value}
-              onClick={() => {
-                setDateFilter(p.value);
-                setPage(1);
-              }}
-              className={`${chipBase} ${dateFilter === p.value ? chipOn : chipOff}`}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div>
+          <p className={groupLabel}>КОГДА</p>
+          <nav className="flex overflow-x-auto md:block md:space-y-1">
+            {DATE_PRESETS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                aria-pressed={dateFilter === p.value}
+                onClick={() => {
+                  setDateFilter(p.value);
+                  setPage(1);
+                }}
+                className={`${navBase} ${dateFilter === p.value ? navOn : navOff}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </nav>
           <input
             type="date"
             aria-label="Выбрать дату"
@@ -134,48 +194,56 @@ export default function EventList() {
               setDateFilter(e.target.value);
               setPage(1);
             }}
-            className={`${chipBase} cursor-pointer ${customDate ? chipOn : chipOff}`}
+            className={`${fieldClass} mt-3 cursor-pointer ${
+              customDate ? "border-accent" : ""
+            }`}
           />
         </div>
 
         {/* Категории */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {CATEGORY_FILTERS.map((c) => (
-            <button
-              key={c.value}
-              type="button"
-              aria-pressed={category === c.value}
-              onClick={() => {
-                setCategory(c.value);
-                setPage(1);
-              }}
-              className={`${chipBase} ${category === c.value ? chipOn : chipOff}`}
-            >
-              <span aria-hidden>{c.emoji}</span> {c.label}
-            </button>
-          ))}
+        <div className="border-t border-stone-200 pt-6">
+          <p className={groupLabel}>КАТЕГОРИЯ</p>
+          <nav className="flex overflow-x-auto md:block md:space-y-1">
+            {CATEGORY_FILTERS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                aria-pressed={category === c.value}
+                onClick={() => {
+                  setCategory(c.value);
+                  setPage(1);
+                }}
+                className={`${navBase} ${category === c.value ? navOn : navOff}`}
+              >
+                <span aria-hidden>{c.emoji}</span> {c.label}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        {/* Город, бесплатные, сброс */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-stone-100 pt-4">
-          <select
-            aria-label="Город"
-            value={city}
-            onChange={(e) => {
-              setCity(e.target.value);
-              setPage(1);
-            }}
-            className={fieldClass}
-          >
-            <option value="">Вся республика</option>
-            {CITIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+        {/* Город и бесплатные */}
+        <div className="space-y-4 border-t border-stone-200 pt-6">
+          <div>
+            <p className={groupLabel}>ГОРОД</p>
+            <select
+              aria-label="Город"
+              value={city}
+              onChange={(e) => {
+                setCity(e.target.value);
+                setPage(1);
+              }}
+              className={fieldClass}
+            >
+              <option value="">Вся республика</option>
+              {CITIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <label className="flex cursor-pointer items-center gap-2 font-sans text-sm">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-primary">
             <input
               type="checkbox"
               checked={isFree}
@@ -187,73 +255,50 @@ export default function EventList() {
             />
             Только бесплатные
           </label>
+        </div>
 
-          {hasFilters && (
+        {hasFilters && (
+          <div className="border-t border-stone-200 pt-5">
             <button
               type="button"
               onClick={resetFilters}
-              className="font-sans text-sm text-muted underline-offset-4 transition-colors hover:text-accent hover:underline sm:ml-auto"
+              className="text-sm text-muted transition-colors hover:text-red-700"
             >
               Сбросить фильтры
             </button>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </aside>
 
-      {initialLoading ? (
-        <div className="py-12 text-center font-serif text-xl text-muted">
-          Загрузка событий...
-        </div>
-      ) : result?.error && events.length === 0 ? (
-        <div className="py-12 text-center">
-          <p className="font-serif text-2xl italic text-muted">
-            Не удалось загрузить события
-          </p>
-          <p className="mt-2 font-sans text-sm text-muted">
-            Проверьте, что API запущено ({API_URL})
-          </p>
-          <button
-            type="button"
-            onClick={() => setRetry((r) => r + 1)}
-            className={actionButtonClass}
-          >
-            Повторить
-          </button>
-        </div>
-      ) : events.length === 0 ? (
-        <div className="py-12 text-center">
-          <p className="font-serif text-2xl italic text-muted">
-            По вашему запросу ничего не найдено
-          </p>
-          <p className="mt-2 font-sans text-sm text-muted">
-            Попробуйте изменить фильтры
-          </p>
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className={actionButtonClass}
-            >
-              Сбросить фильтры
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          <p className="mb-4 font-sans text-sm text-muted">
-            Найдено: {total}
-          </p>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
+      {/* ───────── Содержимое ───────── */}
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5">
+          <div>
+            <h2 className="font-serif text-2xl font-semibold text-primary">
+              Ближайшие события
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Подберите событие по дате, категории и городу
+            </p>
           </div>
 
-          {result?.error && !loading ? (
-            <div className="mt-8 text-center">
-              <p className="mb-3 font-sans text-sm text-muted">
-                Не удалось загрузить следующую страницу
+          {events.length > 0 && (
+            <span className="border border-stone-300 px-3 py-1.5 text-xs text-muted">
+              Найдено: {total}
+            </span>
+          )}
+        </div>
+
+        <div className="pt-8">
+          {initialLoading ? (
+            <div className="py-12 text-sm text-muted">Загружаем события...</div>
+          ) : result?.error && events.length === 0 ? (
+            <div className="border border-red-200 bg-white p-6 sm:p-8">
+              <p className="font-serif text-2xl font-semibold text-primary">
+                Не удалось загрузить события
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                Проверьте, что API запущено ({API_URL})
               </p>
               <button
                 type="button"
@@ -263,22 +308,68 @@ export default function EventList() {
                 Повторить
               </button>
             </div>
-          ) : (
-            (hasMore || (loading && page > 1)) && (
-              <div className="mt-8 text-center">
+          ) : events.length === 0 ? (
+            <div className="border border-stone-200 bg-white p-6 sm:p-8">
+              <p className="font-serif text-2xl font-semibold text-primary">
+                По вашему запросу ничего не найдено
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                Попробуйте изменить фильтры
+              </p>
+              {hasFilters && (
                 <button
                   type="button"
-                  disabled={loading}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={resetFilters}
                   className={actionButtonClass}
                 >
-                  {loading ? "Загрузка..." : "Показать ещё"}
+                  Сбросить фильтры
                 </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {events.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isFavorite={favoriteIds.includes(event.id)}
+                    onFavoriteChange={handleFavoriteChange}
+                  />
+                ))}
               </div>
-            )
+
+              {result?.error && !loading ? (
+                <div className="mt-10 border-t border-stone-200 pt-6 text-center">
+                  <p className="mb-3 text-sm text-muted">
+                    Не удалось загрузить следующую страницу
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRetry((r) => r + 1)}
+                    className={actionButtonClass}
+                  >
+                    Повторить
+                  </button>
+                </div>
+              ) : (
+                (hasMore || (loading && page > 1)) && (
+                  <div className="mt-10 border-t border-stone-200 pt-6 text-center">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setPage((p) => p + 1)}
+                      className={actionButtonClass}
+                    >
+                      {loading ? "Загрузка..." : "Показать ещё"}
+                    </button>
+                  </div>
+                )
+              )}
+            </>
           )}
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
